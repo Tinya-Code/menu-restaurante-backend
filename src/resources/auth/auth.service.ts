@@ -1,0 +1,82 @@
+import { Injectable, ConflictException, ServiceUnavailableException } from '@nestjs/common';
+import { DatabaseService } from '../../config/database/database.service';
+import { RegisterDto } from './dto/register.dto';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly db: DatabaseService,
+  ) {}
+
+  async register(authData: { uid: string; email: string }, dto: RegisterDto) {
+    const { uid, email } = authData;
+    const client = await this.db.getClient();
+
+    try {
+      await client.query('BEGIN');
+
+      // 1. Check if user already exists
+      const userCheck = await client.query('SELECT id FROM users WHERE firebase_uid = $1 OR email = $2', [uid, email]);
+      if (userCheck.rows.length > 0) {
+        throw new ConflictException('User already registered');
+      }
+
+      // 2. Insert User
+      const userRes = await client.query(
+        'INSERT INTO users (firebase_uid, email, phone, display_name) VALUES ($1, $2, $3, $4) RETURNING id',
+        [uid, email, dto.phone, dto.display_name],
+      );
+      const userId = userRes.rows[0].id;
+
+      // 3. Get Default Plan (Free)
+      const planRes = await client.query("SELECT id FROM plans WHERE name = 'Free' LIMIT 1");
+      if (planRes.rows.length === 0) {
+        throw new ServiceUnavailableException('Default plan not found in database');
+      }
+      const planId = planRes.rows[0].id;
+
+      // 4. Insert Restaurant
+      // The trigger 'trg_bootstrap_restaurant' will automatically:
+      // - Create restaurant_settings
+      // - Create the 'Sucursal Principal' branch (which triggers 'trg_bootstrap_branch')
+      // - 'trg_bootstrap_branch' creates branch_settings and a 'Menú Principal'
+      // - Create restaurant_members (owner)
+      // - Set user.active_context = 'owner'
+      // - Create a trial subscription
+      const restaurantRes = await client.query(
+        `INSERT INTO restaurants (name, slug, owner_id, plan_id, phone, address, location) 
+         VALUES ($1, $2, $3, $4, $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326)) 
+         RETURNING id, slug`,
+        [dto.restaurant_name, dto.slug, userId, planId, dto.phone_restaurant, dto.address, dto.lng, dto.lat],
+      );
+      const restaurantId = restaurantRes.rows[0].id;
+
+      // 5. Explicitly sync the Main Branch data
+      // The trigger creates the branch, but we want it to have the initial phone/address/location
+      await client.query(
+        `UPDATE branches 
+         SET phone = $2, address = $3, location = ST_SetSRID(ST_MakePoint($4, $5), 4326)
+         WHERE restaurant_id = $1 AND is_main = true`,
+        [restaurantId, dto.phone_restaurant, dto.address, dto.lng, dto.lat],
+      );
+
+      await client.query('COMMIT');
+
+      return {
+        success: true,
+        message: 'Registro completado exitosamente',
+        data: {
+          user_id: userId,
+          restaurant_id: restaurantId,
+          slug: restaurantRes.rows[0].slug,
+        },
+        redirect_url: '/dashboard',
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
