@@ -36,13 +36,12 @@ export class AuthService {
       const planId = planRes.rows[0].id;
 
       // 4. Insert Restaurant
-      // The trigger 'trg_bootstrap_restaurant' will automatically:
-      // - Create restaurant_settings
-      // - Create the 'Sucursal Principal' branch (which triggers 'trg_bootstrap_branch')
-      // - 'trg_bootstrap_branch' creates branch_settings and a 'Menú Principal'
-      // - Create restaurant_members (owner)
-      // - Set user.active_context = 'owner'
-      // - Create a trial subscription
+      // El trigger 'trg_bootstrap_restaurant' automáticamente:
+      // - Crea la sucursal 'Sucursal Principal' (la cual dispara a su vez 'trg_bootstrap_branch')
+      // - El trigger de la sucursal crea un 'branch_settings' default y el 'Menú Principal'
+      // - Define al usuario localmente en 'restaurant_members'
+      // - Actualiza 'users.active_context = owner'
+      // - Crea una suscripción por defecto con base en free.
       const restaurantRes = await client.query(
         `INSERT INTO restaurants (name, slug, owner_id, plan_id, phone, address, location) 
          VALUES ($1, $2, $3, $4, $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326)) 
@@ -51,14 +50,27 @@ export class AuthService {
       );
       const restaurantId = restaurantRes.rows[0].id;
 
-      // 5. Explicitly sync the Main Branch data
-      // The trigger creates the branch, but we want it to have the initial phone/address/location
-      await client.query(
+      // 5. Explicitly sync the Main Branch data & GET BRANCH ID
+      // Forzamos que la configuración regional básica se aplique al branch que originó el boot y sacamos su ID.
+      const branchRes = await client.query(
         `UPDATE branches 
          SET phone = $2, address = $3, location = ST_SetSRID(ST_MakePoint($4, $5), 4326)
-         WHERE restaurant_id = $1 AND is_main = true`,
+         WHERE restaurant_id = $1 AND is_main = true
+         RETURNING id`,
         [restaurantId, dto.phone_restaurant, dto.address, dto.lng, dto.lat],
       );
+      const branchId = branchRes.rows[0].id;
+
+      // 6. Update implicit branch_settings
+      // Inyectamos el teléfono de registro en la configuración de whatsapp para alinear el order_config nativo.
+      if (dto.phone_restaurant) {
+        await client.query(
+          `UPDATE branch_settings 
+           SET whatsapp_config = jsonb_set(whatsapp_config, '{number}', to_jsonb($2::text))
+           WHERE branch_id = $1`,
+          [branchId, dto.phone_restaurant],
+        );
+      }
 
       await client.query('COMMIT');
 
@@ -68,6 +80,7 @@ export class AuthService {
         data: {
           user_id: userId,
           restaurant_id: restaurantId,
+          branch_id: branchId,
           slug: restaurantRes.rows[0].slug,
         },
         redirect_url: '/dashboard',

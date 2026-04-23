@@ -1,16 +1,24 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 --  00_extensions.sql
---  Extensiones de PostgreSQL y función utilitaria global.
---  Ejecutar PRIMERO antes que cualquier otro archivo.
+--  Extensiones de PostgreSQL requeridas por el sistema.
+--  Ejecutar PRIMERO, antes que cualquier otro archivo SQL.
+--
+--  Extensiones:
+--    · pg_trgm    → búsqueda difusa por trigramas; habilita índices GIN sobre
+--                   columnas de texto para LIKE/ILIKE y similitud (similarity())
+--    · postgis    → tipo GEOGRAPHY y funciones espaciales (ST_Distance, etc.)
+--    · btree_gist → permite EXCLUDE USING btree, necesario para la constraint
+--                   de unicidad condicional de la sucursal principal en branches
 -- ══════════════════════════════════════════════════════════════════════════════
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- Búsqueda de texto por trigramas (GIN)
-CREATE EXTENSION IF NOT EXISTS postgis;   -- Tipos y funciones geoespaciales
-CREATE EXTENSION IF NOT EXISTS btree_gist; -- Necesario para EXCLUDE en branches
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 
--- ── Función global: updated_at automático ─────────────────────────────────────
--- Usada por todos los triggers de actualización de timestamp.
+-- ── fn_set_updated_at ─────────────────────────────────────────────────────────
+-- Trigger BEFORE UPDATE reutilizable que estampa now() en updated_at.
+-- Se adjunta como trigger en todas las tablas que exponen ese campo.
 CREATE OR REPLACE FUNCTION fn_set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -18,3 +26,4 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+

@@ -29,10 +29,10 @@ Este módulo maneja la creación de la cuenta de usuario y el restaurante inicia
 - **Lógica Interna**:
   1. **Validación Firebase**: Extraer `uid` y `email` del token del header.
   2. **Usuario**: Insertar en la tabla `users`.
-  3. **Restaurante**: Insertar en la tabla `restaurants` vinculando al `owner_id`. 
-     - La ubicación se guarda como `GEOGRAPHY(Point, 4326)`.
-  4. **Plan**: Se asigna por defecto el primer plan activo de la tabla `plans`.
-  5. **Settings**: Se crean automáticamente vía Trigger SQL.
+  3. **Restaurante**: Insertar en la tabla `restaurants` vinculando al `owner_id`. El trigger `fn_bootstrap_restaurant` creará automáticamente la sucursal principal ("Sucursal Principal") y la configuración inicial (`branch_settings`).
+  4. **Plan**: Se asigna por defecto el plan 'Free'.
+  5. **Sincronización de Sucursal**: Se actualizan los datos específicos de la sucursal principal (`branches`) con los del formulario (`phone`, `address` y `location` mediante `GEOGRAPHY`).
+  6. **Sincronización de Ajustes**: Se inyecta el `phone_restaurant` dentro de la propiedad nativa de `whatsapp_config.number` en el `branch_settings` creado.
 - **Salida (201 Created)**:
   ```json
   {
@@ -41,6 +41,7 @@ Este módulo maneja la creación de la cuenta de usuario y el restaurante inicia
     "data": {
       "user_id": "uuid",
       "restaurant_id": "uuid",
+      "branch_id": "uuid",
       "slug": "la-pizzeria-gourmet"
     },
     "redirect_url": "/dashboard"
