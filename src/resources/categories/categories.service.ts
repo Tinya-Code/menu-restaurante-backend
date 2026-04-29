@@ -23,7 +23,6 @@ export class CategoriesService {
     const result = await this.db.query(
       `SELECT 
         c.id,
-        c.restaurant_id,
         c.menu_id,
         c.name,
         c.description,
@@ -48,7 +47,6 @@ export class CategoriesService {
     const result = await this.db.query(
       `SELECT 
         c.id,
-        c.restaurant_id,
         c.menu_id,
         c.name,
         c.description,
