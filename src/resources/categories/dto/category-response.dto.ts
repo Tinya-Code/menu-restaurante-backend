@@ -1,57 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-
-export class ProductDto {
-  @ApiProperty({ description: 'Product ID', example: 'prod-tequenos-1' })
-  id: string;
-
-  @ApiProperty({ description: 'Restaurant ID', example: 'res-uuid-1' })
-  restaurant_id: string;
-
-  @ApiProperty({ description: 'Category ID', example: 'cat-entradas-1' })
-  category_id: string;
-
-  @ApiProperty({ description: 'Product name', example: 'Tequeños Crujientes' })
-  name: string;
-
-  @ApiProperty({
-    description: 'Product description',
-    example: 'Con salsa de palta especial.',
-  })
-  description: string;
-
-  @ApiProperty({ description: 'Product price', example: 16.0 })
-  price: number;
-
-  @ApiProperty({ description: 'Image URL', example: null, nullable: true })
-  image_url: string | null;
-
-  @ApiProperty({
-    description: 'Whether the product is available',
-    example: true,
-  })
-  is_available: boolean;
-
-  @ApiProperty({ description: 'Display order', example: 0 })
-  display_order: number;
-
-  @ApiProperty({
-    description: 'Whether the product is recommended',
-    example: true,
-  })
-  is_recommended: boolean;
-
-  @ApiProperty({
-    description: 'Creation timestamp',
-    example: '2026-02-28T03:28:24.097231+00:00',
-  })
-  created_at: string;
-
-  @ApiProperty({
-    description: 'Last update timestamp',
-    example: '2026-02-28T03:28:24.097231+00:00',
-  })
-  updated_at: string;
-}
+import { ProductResponseDto } from '../../products/dto';
 
 export class CategoryResponseDto {
   @ApiProperty({
@@ -105,8 +53,8 @@ export class CategoryResponseDto {
 
   @ApiProperty({
     description: 'List of products in this category (populated dynamically)',
-    type: [ProductDto],
+    type: [ProductResponseDto],
     required: false,
   })
-  products?: ProductDto[];
+  products?: ProductResponseDto[];
 }
